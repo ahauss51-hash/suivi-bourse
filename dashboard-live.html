@@ -188,9 +188,9 @@
 
       <span class="section-title">Valeur actuelle du portefeuille</span>
       <div class="chart-card">
-        <div class="line" style="padding:4px 0;"><span>Compte-Titres (restant) :</span><b id="ct-restant">—</b></div>
-        <div class="line" style="padding:4px 0;"><span>PEA (restant) :</span><b id="pea-restant">—</b></div>
-        <div class="line" style="padding:8px 0 0; border-top: 1px solid var(--border); margin-top:6px;"><span><b style="color:var(--text)">Total :</b></span><b style="font-size:15px;" id="total-restant">—</b></div>
+        <div class="line" style="padding:4px 0;"><span>Compte-Titres (restant) : </span><b id="ct-restant">—</b></div>
+        <div class="line" style="padding:4px 0;"><span>PEA (restant) : </span><b id="pea-restant">—</b></div>
+        <div class="line" style="padding:8px 0 0; border-top: 1px solid var(--border); margin-top:6px;"><span><b style="color:var(--text)">Total : </b></span><b style="font-size:15px;" id="total-restant">—</b></div>
       </div>
     </div>
 
@@ -729,7 +729,7 @@ async function refreshAll() {
     renderRepartition();
     renderEvolution();
     renderJournal();
-    timeEl.textContent = 'Actualisé à ' + new Date().toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'}) + ' · v6';
+    timeEl.textContent = 'Actualisé à ' + new Date().toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'}) + ' · v7';
   } catch (err) {
     timeEl.textContent = 'Données reçues, erreur d\'affichage — ' + err.message;
     console.error(err);
