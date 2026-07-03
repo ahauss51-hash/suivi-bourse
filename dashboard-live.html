@@ -547,7 +547,7 @@ function fillHeroAndCards() {
 if (typeof ChartDataLabels !== 'undefined') Chart.register(ChartDataLabels);
 
 const PALETTE = ["#C7A34C","#60A5FA","#A78BFA","#4ADE80","#FB7185","#F59E0B","#22D3EE","#F472B6","#94A3B8","#34D399","#818CF8"];
-const fmt = n => n.toLocaleString('fr-FR', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' €';
+const fmt = n => n.toLocaleString('fr-FR', {minimumFractionDigits:2, maximumFractionDigits:2}) + '\u00A0€';
 
 let chartSecteur, chartGeo, chartEvolution;
 let currentAccount = 'cto';
@@ -729,7 +729,7 @@ async function refreshAll() {
     renderRepartition();
     renderEvolution();
     renderJournal();
-    timeEl.textContent = 'Actualisé à ' + new Date().toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'}) + ' · v7';
+    timeEl.textContent = 'Actualisé à ' + new Date().toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'}) + ' · v8';
   } catch (err) {
     timeEl.textContent = 'Données reçues, erreur d\'affichage — ' + err.message;
     console.error(err);
