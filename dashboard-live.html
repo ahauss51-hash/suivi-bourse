@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Suivi Bourse</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<style>
+  :root {
+    --navy: #0B1220;
+    --navy-light: #131C2E;
+    --navy-lighter: #1A2436;
+    --border: #22304A;
+    --text: #E8EDF4;
+    --muted: #8B98AC;
+    --gold: #C7A34C;
+    --green: #4ADE80;
+    --red: #FB7185;
+    --purple: #A78BFA;
+    --blue: #60A5FA;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: var(--navy);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  .app { display: flex; flex-direction: column; min-height: 100vh; min-height: 100dvh; }
+
+  header {
+    flex: 0 0 auto;
+    padding: 16px 18px 14px;
+    background: var(--navy-light);
+    border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 10;
+  }
+  header .row { display: flex; align-items: center; justify-content: space-between; }
+  h1 { font-size: 17px; font-weight: 700; margin: 0; letter-spacing: 0.2px; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); display: inline-block; margin-right: 7px; box-shadow: 0 0 6px var(--green); }
+  .update-time { font-size: 10.5px; color: var(--muted); margin-top: 3px; margin-left: 14px; }
+
+  main { flex: 1 1 auto; padding: 16px 16px 90px; overflow-y: auto; }
+  .view { display: none; }
+  .view.active { display: block; animation: fadeIn 0.25s ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px);} to { opacity:1; transform: translateY(0);} }
+
+  /* Cards */
+  .hero {
+    background: linear-gradient(135deg, var(--navy-lighter), var(--navy-light));
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 20px;
+    margin-bottom: 14px;
+  }
+  .hero .label { font-size: 11.5px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .hero .value { font-size: 32px; font-weight: 700; margin-top: 6px; letter-spacing: -0.5px; }
+  .hero .value.pos { color: var(--green); }
+  .hero .sub { font-size: 12.5px; color: var(--muted); margin-top: 6px; }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+  .card {
+    background: var(--navy-light);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 14px;
+  }
+  .card .tag { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+  .tag.cto { color: var(--blue); }
+  .tag.pea { color: var(--purple); }
+  .swatch { width: 8px; height: 8px; border-radius: 2px; }
+  .swatch.cto { background: var(--blue); }
+  .swatch.pea { background: var(--purple); }
+  .card .line { display: flex; justify-content: space-between; font-size: 12.5px; padding: 4px 0; color: var(--muted); }
+  .card .line b { color: var(--text); font-weight: 600; }
+  .card .line b.pos { color: var(--green); }
+  .card .line b.neg { color: var(--red); }
+
+  section-title, .section-title {
+    display: block; font-size: 13px; font-weight: 700; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.6px; margin: 18px 0 10px;
+  }
+
+  .segmented {
+    display: flex; background: var(--navy-lighter); border-radius: 10px;
+    padding: 3px; margin-bottom: 14px; border: 1px solid var(--border);
+  }
+  .segmented button {
+    flex: 1; background: transparent; border: 0; color: var(--muted);
+    font-size: 13px; font-weight: 600; padding: 9px 0; border-radius: 8px;
+  }
+  .segmented button.active { background: var(--navy-light); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+
+  .chart-card {
+    background: var(--navy-light); border: 1px solid var(--border);
+    border-radius: 14px; padding: 16px; margin-bottom: 14px;
+  }
+  .chart-card h3 { font-size: 13px; margin: 0 0 12px; color: var(--text); font-weight: 600; }
+  .chart-wrap { position: relative; height: 220px; }
+
+  .legend-list { margin-top: 14px; }
+  .legend-item { display: flex; align-items: center; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 12.5px; }
+  .legend-item:last-child { border-bottom: none; }
+  .legend-left { display: flex; align-items: center; gap: 8px; color: var(--muted); }
+  .legend-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+  .legend-right { text-align: right; }
+  .legend-right .amt { font-weight: 600; color: var(--text); }
+  .legend-right .pct { font-size: 11px; color: var(--muted); margin-left: 6px; }
+
+  .position-item {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 11px 0; border-bottom: 1px solid var(--border);
+  }
+  .position-item:last-child { border-bottom: none; }
+  .position-name { font-size: 13px; font-weight: 600; }
+  .position-meta { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .position-amt { font-size: 13px; font-weight: 600; text-align: right; }
+
+  nav.tabbar {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    display: flex; background: var(--navy-light); border-top: 1px solid var(--border);
+    padding: 8px 6px calc(8px + env(safe-area-inset-bottom));
+    z-index: 20;
+  }
+  nav.tabbar button {
+    flex: 1; background: transparent; border: 0; color: var(--muted);
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    font-size: 10px; padding: 4px 0;
+  }
+  nav.tabbar button.active { color: var(--gold); }
+  nav.tabbar svg { width: 20px; height: 20px; }
+
+  button.refresh-btn {
+    background: var(--navy); border: 1px solid var(--border); color: var(--gold);
+    width: 34px; height: 34px; border-radius: 8px; display: flex; align-items: center; justify-content: center;
+  }
+  button.refresh-btn.spin svg { animation: spin 0.7s linear; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="row">
+      <div>
+        <h1><span class="dot"></span>Suivi Bourse</h1>
+      </div>
+      <button class="refresh-btn" id="refreshBtn">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="23 4 23 10 17 10"></polyline>
+          <polyline points="1 20 1 14 7 14"></polyline>
+          <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+        </svg>
+      </button>
+    </div>
+    <div class="update-time" id="updateTime">Connexion aux données…</div>
+  </header>
+
+  <main>
+    <!-- VUE D'ENSEMBLE -->
+    <div class="view active" id="view-overview">
+      <div class="hero">
+        <div class="label">Gain cumulé total (CT + PEA)</div>
+        <div class="value pos" id="totalGain">—</div>
+        <div class="sub">Après impôt : <span id="totalGainNet">—</span></div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="tag cto"><span class="swatch cto"></span>Compte-Titres</div>
+          <div class="line"><span>Lignes achetées</span><b id="ct-lignes">—</b></div>
+          <div class="line"><span>Capital investi</span><b id="ct-capital">—</b></div>
+          <div class="line"><span>Ventes</span><b id="ct-ventes">—</b></div>
+          <div class="line"><span>Gain réalisé</span><b class="pos" id="ct-gain">—</b></div>
+          <div class="line"><span>Après impôt</span><b class="pos" id="ct-gain-net">—</b></div>
+        </div>
+        <div class="card">
+          <div class="tag pea"><span class="swatch pea"></span>PEA</div>
+          <div class="line"><span>Lignes achetées</span><b id="pea-lignes">—</b></div>
+          <div class="line"><span>Capital investi</span><b id="pea-capital">—</b></div>
+          <div class="line"><span>Ventes</span><b id="pea-ventes">—</b></div>
+          <div class="line"><span>Gain réalisé</span><b class="pos" id="pea-gain">—</b></div>
+          <div class="line"><span>Après impôt</span><b class="pos" id="pea-gain-net">—</b></div>
+        </div>
+      </div>
+
+      <span class="section-title">Valeur actuelle du portefeuille</span>
+      <div class="chart-card">
+        <div class="line" style="padding:4px 0;"><span>Compte-Titres (restant)</span><b id="ct-restant">—</b></div>
+        <div class="line" style="padding:4px 0;"><span>PEA (restant)</span><b id="pea-restant">—</b></div>
+        <div class="line" style="padding:8px 0 0; border-top: 1px solid var(--border); margin-top:6px;"><span><b style="color:var(--text)">Total</b></span><b style="font-size:15px;" id="total-restant">—</b></div>
+      </div>
+    </div>
+
+    <!-- REPARTITION -->
+    <div class="view" id="view-repartition">
+      <div class="segmented" id="accountSeg">
+        <button class="active" data-account="cto">Compte-Titres</button>
+        <button data-account="pea">PEA</button>
+      </div>
+
+      <div class="chart-card">
+        <h3>Répartition par secteur</h3>
+        <div class="chart-wrap"><canvas id="chartSecteur"></canvas></div>
+        <div class="legend-list" id="legendSecteur"></div>
+      </div>
+
+      <div class="chart-card">
+        <h3>Répartition géographique</h3>
+        <div class="chart-wrap"><canvas id="chartGeo"></canvas></div>
+        <div class="legend-list" id="legendGeo"></div>
+      </div>
+    </div>
+
+    <!-- EVOLUTION -->
+    <div class="view" id="view-evolution">
+      <div class="chart-card">
+        <h3>Gain cumulé dans le temps</h3>
+        <div class="chart-wrap" style="height:260px;"><canvas id="chartEvolution"></canvas></div>
+      </div>
+      <span class="section-title">Historique des ventes</span>
+      <div class="chart-card" id="salesHistory"></div>
+    </div>
+
+    <!-- JOURNAL -->
+    <div class="view" id="view-journal">
+      <div class="segmented" id="journalSeg">
+        <button class="active" data-account="cto">Compte-Titres</button>
+        <button data-account="pea">PEA</button>
+      </div>
+      <div class="chart-card">
+        <h3>Positions en cours</h3>
+        <div id="journalList"></div>
+      </div>
+    </div>
+  </main>
+
+  <nav class="tabbar">
+    <button class="active" data-view="overview">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"></rect><rect x="14" y="3" width="7" height="5"></rect><rect x="14" y="12" width="7" height="9"></rect><rect x="3" y="16" width="7" height="5"></rect></svg>
+      Résumé
+    </button>
+    <button data-view="repartition">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 3v9l7 4"></path></svg>
+      Répartition
+    </button>
+    <button data-view="evolution">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 17 9 11 13 15 21 6"></polyline></svg>
+      Évolution
+    </button>
+    <button data-view="journal">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16H4z"></path><path d="M8 9h8M8 13h5"></path></svg>
+      Journal
+    </button>
+  </nav>
+</div>
+
+
+<script>
+/* ==================== SOURCES DE DONNÉES ====================
+   Liens CSV publiés depuis Google Sheets (Fichier > Partager > Publier sur le web). */
+const CSV_URLS = {
+  tableau: "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ34LwFCAhdNbmSyljKgQXRdbEZ7r6FdafBKagCcKa2aPxusDRydF-t1EG0UzfOSxRYFdAzlTTKoVzl/pub?gid=865183746&single=true&output=csv",
+  ct:      "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ34LwFCAhdNbmSyljKgQXRdbEZ7r6FdafBKagCcKa2aPxusDRydF-t1EG0UzfOSxRYFdAzlTTKoVzl/pub?gid=299282490&single=true&output=csv",
+  pea:     "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ34LwFCAhdNbmSyljKgQXRdbEZ7r6FdafBKagCcKa2aPxusDRydF-t1EG0UzfOSxRYFdAzlTTKoVzl/pub?gid=1596737368&single=true&output=csv",
+  repartition: "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ34LwFCAhdNbmSyljKgQXRdbEZ7r6FdafBKagCcKa2aPxusDRydF-t1EG0UzfOSxRYFdAzlTTKoVzl/pub?gid=958536309&single=true&output=csv"
+};
+
+let DATA = null;
+
+function parseNum(v) {
+  if (v === undefined || v === null) return 0;
+  let raw = String(v).trim();
+  if (raw === '') return 0;
+  const isPercent = raw.includes('%');
+  // Strip currency symbols, percent sign, and all spaces (incl. non-breaking space)
+  let s = raw.replace(/[€$£%\s\u00A0]/g, '');
+  if (s === '' || s === '-') return 0;
+  const hasComma = s.includes(',');
+  const hasDot = s.includes('.');
+  if (hasComma && hasDot) {
+    // French format: '.' = thousands separator, ',' = decimal separator
+    s = s.replace(/\./g, '').replace(',', '.');
+  } else if (hasComma && !hasDot) {
+    // ',' used as decimal separator
+    s = s.replace(',', '.');
+  }
+  s = s.replace(/[^0-9.\-]/g, '');
+  let n = parseFloat(s);
+  if (isNaN(n)) return 0;
+  if (isPercent) n = n / 100;
+  return n;
+}
+
+function extractDateParts(v) {
+  if (!v) return null;
+  const s = String(v).trim();
+  let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return { iso: `${m[1]}-${m[2]}-${m[3]}` };
+  m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (m) return { a: parseInt(m[1], 10), b: parseInt(m[2], 10), year: m[3] };
+  return null;
+}
+
+// Determine whether a column of ambiguous D/M/Y-or-M/D/Y strings is French (D/M/Y)
+// or US (M/D/Y) by looking for at least one unambiguous value in the whole column
+// (e.g. "22/6/2026" can only be day=22 → D/M/Y).
+function detectDateFormat(rawValues) {
+  let sawFirstOver12 = false;
+  let sawSecondOver12 = false;
+  for (const v of rawValues) {
+    const p = extractDateParts(v);
+    if (!p || p.iso) continue;
+    if (p.a > 12) sawFirstOver12 = true;
+    if (p.b > 12) sawSecondOver12 = true;
+  }
+  if (sawFirstOver12 && !sawSecondOver12) return 'DMY';
+  if (sawSecondOver12 && !sawFirstOver12) return 'MDY';
+  return 'MDY'; // fully ambiguous column: default to US format (Google's usual export)
+}
+
+function parseDateWithFormat(v, format) {
+  const p = extractDateParts(v);
+  if (!p) return null;
+  if (p.iso) return p.iso;
+  const month = format === 'DMY' ? p.b : p.a;
+  const day = format === 'DMY' ? p.a : p.b;
+  return `${p.year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+}
+
+async function fetchCsv(url) {
+  const res = await fetch(url, { cache: 'no-store' });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const text = await res.text();
+  const parsed = Papa.parse(text, { skipEmptyLines: true });
+  return parsed.data; // array of arrays
+}
+
+function findRow(rows, label) {
+  const target = label.toLowerCase();
+  return rows.find(r => r[1] && String(r[1]).trim().toLowerCase() === target);
+}
+
+function parseTableauDeBord(rows) {
+  const lignes = findRow(rows, 'Nombre de lignes');
+  const capital = findRow(rows, 'Capital total investi');
+  const ventes = findRow(rows, 'Nombre de ventes');
+  const recupere = findRow(rows, 'Capital récupéré');
+  const gain = findRow(rows, 'Gain / Perte réalisé');
+  const gainNet = findRow(rows, 'Gain après impôt');
+  const gainCumule = findRow(rows, 'Gain cumulé CT + PEA');
+
+  return {
+    ct: {
+      lignes: lignes ? parseNum(lignes[2]) : 0,
+      capital: capital ? parseNum(capital[2]) : 0,
+      ventes: ventes ? parseNum(ventes[2]) : 0,
+      recupere: recupere ? parseNum(recupere[2]) : 0,
+      gain: gain ? parseNum(gain[2]) : 0,
+      gainNet: gainNet ? parseNum(gainNet[2]) : 0
+    },
+    pea: {
+      lignes: lignes ? parseNum(lignes[3]) : 0,
+      capital: capital ? parseNum(capital[3]) : 0,
+      ventes: ventes ? parseNum(ventes[3]) : 0,
+      recupere: recupere ? parseNum(recupere[3]) : 0,
+      gain: gain ? parseNum(gain[3]) : 0,
+      gainNet: gainNet ? parseNum(gainNet[3]) : 0
+    },
+    gainCumule: gainCumule ? parseNum(gainCumule[2]) : 0
+  };
+}
+
+function parseRepartitionBlock(rows, marker) {
+  // Find the title row containing both the marker (CTO/PEA) and "Secteur"
+  const titleIdx = rows.findIndex(r =>
+    r.some(c => c && String(c).includes(marker) && String(c).includes('Secteur'))
+  );
+  if (titleIdx === -1) return { secteur: [], geo: [] };
+  const headerIdx = titleIdx + 1; // "Catégorie,Montant (€),%,,Catégorie,Montant (€),%"
+
+  const secteur = [];
+  const geo = [];
+  for (let i = headerIdx + 1; i < rows.length; i++) {
+    const r = rows[i];
+    if (!r || r.length === 0) break;
+    const secLabel = r[0] ? String(r[0]).trim() : '';
+    const geoLabel = r[4] ? String(r[4]).trim() : '';
+    const secDone = secLabel === '' || secLabel.toUpperCase() === 'TOTAL';
+    const geoDone = geoLabel === '' || geoLabel.toUpperCase() === 'TOTAL';
+    if (!secDone) secteur.push({ cat: secLabel, montant: parseNum(r[1]), pct: parseNum(r[2]) });
+    if (!geoDone) geo.push({ cat: geoLabel, montant: parseNum(r[5]), pct: parseNum(r[6]) });
+    if (secDone && geoDone) break;
+  }
+  return { secteur, geo };
+}
+
+function parseRepartition(rows) {
+  return {
+    cto: parseRepartitionBlock(rows, 'CTO'),
+    pea: parseRepartitionBlock(rows, 'PEA')
+  };
+}
+
+function parseJournalSheet(rows) {
+  const headerIdx = rows.findIndex(r => r[0] && String(r[0]).trim().toLowerCase().startsWith('nom'));
+  if (headerIdx === -1) return { positions: [], ventes: [] };
+  const headerRow = rows[headerIdx];
+
+  // Find where the second "Nom / Ticker" (ventes table) starts — the gap between
+  // the two side-by-side tables isn't always the same width across sheets.
+  let ventesCol = -1;
+  for (let c = 1; c < headerRow.length; c++) {
+    if (headerRow[c] && String(headerRow[c]).trim().toLowerCase().startsWith('nom')) { ventesCol = c; break; }
+  }
+
+  const positions = [];
+  const ventes = [];
+
+  // First pass: collect raw "Date vente" values to determine the column's date format
+  const rawVenteDates = [];
+  if (ventesCol !== -1) {
+    for (let i = headerIdx + 1; i < rows.length; i++) {
+      const r = rows[i];
+      if (!r) break;
+      if (r[ventesCol + 3]) rawVenteDates.push(r[ventesCol + 3]);
+    }
+  }
+  const venteDateFormat = detectDateFormat(rawVenteDates);
+
+  for (let i = headerIdx + 1; i < rows.length; i++) {
+    const r = rows[i];
+    if (!r) break;
+
+    // Achats side (cols 0-10)
+    const nom = r[0] ? String(r[0]).trim() : '';
+    if (nom !== '') {
+      const qteRestante = parseNum(r[8]);
+      const montantRestant = parseNum(r[9]);
+      if (montantRestant > 0) {
+        positions.push({
+          nom,
+          secteur: r[5] ? String(r[5]).trim() : '',
+          geo: r[6] ? String(r[6]).trim() : '',
+          montant: montantRestant,
+          qte: qteRestante
+        });
+      }
+    }
+
+    // Ventes side — columns located relative to the detected ventes header position
+    let nomVente = '';
+    if (ventesCol !== -1) {
+      nomVente = r[ventesCol] ? String(r[ventesCol]).trim() : '';
+      if (nomVente !== '') {
+        const dateVente = parseDateWithFormat(r[ventesCol + 3], venteDateFormat);
+        const g = parseNum(r[ventesCol + 8]);
+        if (dateVente) {
+          ventes.push({ date: dateVente, action: nomVente, gain: g });
+        }
+      }
+    }
+
+
+    // Stop scanning once both sides are clearly exhausted
+    const achatsEmpty = nom === '';
+    const ventesEmpty = nomVente === '';
+    if (achatsEmpty && ventesEmpty && i > headerIdx + 3) {
+      // allow a couple of blank rows in case of formatting gaps, then stop
+      const next1 = rows[i + 1];
+      const next2 = rows[i + 2];
+      const stillEmpty = (!next1 || (!next1[0] && !next1[ventesCol])) && (!next2 || (!next2[0] && !next2[ventesCol]));
+      if (stillEmpty) break;
+
+    }
+  }
+  return { positions, ventes };
+}
+
+function buildEvolution(ventes) {
+  const sorted = [...ventes].sort((a, b) => new Date(a.date) - new Date(b.date));
+  let cumule = 0;
+  return sorted.map(v => {
+    cumule += v.gain;
+    return { date: v.date, action: v.action, gain: v.gain, cumule };
+  });
+}
+
+async function loadAllData() {
+  const [tableauRows, ctRows, peaRows, repRows] = await Promise.all([
+    fetchCsv(CSV_URLS.tableau),
+    fetchCsv(CSV_URLS.ct),
+    fetchCsv(CSV_URLS.pea),
+    fetchCsv(CSV_URLS.repartition)
+  ]);
+
+  const tableau = parseTableauDeBord(tableauRows);
+  const repartition = parseRepartition(repRows);
+  const ctJournal = parseJournalSheet(ctRows);
+  const peaJournal = parseJournalSheet(peaRows);
+
+  return {
+    tableau,
+    repartition: {
+      cto: repartition.cto,
+      pea: repartition.pea
+    },
+    evolution: {
+      ct: buildEvolution(ctJournal.ventes),
+      pea: buildEvolution(peaJournal.ventes)
+    },
+    journal: {
+      cto: ctJournal.positions,
+      pea: peaJournal.positions
+    }
+  };
+}
+
+function fillHeroAndCards() {
+  const t = DATA.tableau;
+  const restantCto = DATA.repartition.cto.secteur.reduce((s, i) => s + i.montant, 0);
+  const restantPea = DATA.repartition.pea.secteur.reduce((s, i) => s + i.montant, 0);
+
+  document.getElementById('totalGain').textContent = (t.gainCumule >= 0 ? '+' : '') + fmt(t.gainCumule);
+  document.getElementById('totalGain').className = 'value ' + (t.gainCumule >= 0 ? 'pos' : '');
+  document.getElementById('totalGainNet').textContent = fmt(t.gainCumule);
+
+  document.getElementById('ct-lignes').textContent = t.ct.lignes;
+  document.getElementById('ct-capital').textContent = fmt(t.ct.capital);
+  document.getElementById('ct-ventes').textContent = t.ct.ventes;
+  document.getElementById('ct-gain').textContent = (t.ct.gain >= 0 ? '+' : '') + fmt(t.ct.gain);
+  document.getElementById('ct-gain-net').textContent = (t.ct.gainNet >= 0 ? '+' : '') + fmt(t.ct.gainNet);
+
+  document.getElementById('pea-lignes').textContent = t.pea.lignes;
+  document.getElementById('pea-capital').textContent = fmt(t.pea.capital);
+  document.getElementById('pea-ventes').textContent = t.pea.ventes;
+  document.getElementById('pea-gain').textContent = (t.pea.gain >= 0 ? '+' : '') + fmt(t.pea.gain);
+  document.getElementById('pea-gain-net').textContent = (t.pea.gainNet >= 0 ? '+' : '') + fmt(t.pea.gainNet);
+
+  document.getElementById('ct-restant').textContent = fmt(restantCto);
+  document.getElementById('pea-restant').textContent = fmt(restantPea);
+  document.getElementById('total-restant').textContent = fmt(restantCto + restantPea);
+}
+
+const PALETTE = ["#C7A34C","#60A5FA","#A78BFA","#4ADE80","#FB7185","#F59E0B","#22D3EE","#F472B6","#94A3B8","#34D399","#818CF8"];
+const fmt = n => n.toLocaleString('fr-FR', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' €';
+
+let chartSecteur, chartGeo, chartEvolution;
+let currentAccount = 'cto';
+let currentJournalAccount = 'cto';
+
+function buildDonut(canvasId, items, existingChart) {
+  const ctx = document.getElementById(canvasId).getContext('2d');
+  const filtered = items.filter(i => i.montant > 0);
+  if (existingChart) existingChart.destroy();
+  return new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: filtered.map(i => i.cat),
+      datasets: [{
+        data: filtered.map(i => i.montant),
+        backgroundColor: filtered.map((_,i) => PALETTE[i % PALETTE.length]),
+        borderColor: '#131C2E',
+        borderWidth: 2
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      cutout: '68%',
+      plugins: { legend: { display: false }, tooltip: {
+        callbacks: { label: c => `${c.label}: ${fmt(c.raw)}` }
+      }}
+    }
+  });
+}
+
+function buildLegend(elId, items) {
+  const el = document.getElementById(elId);
+  const filtered = items.filter(i => i.montant > 0).sort((a,b) => b.montant - a.montant);
+  el.innerHTML = filtered.map((i, idx) => `
+    <div class="legend-item">
+      <div class="legend-left"><span class="legend-dot" style="background:${PALETTE[idx % PALETTE.length]}"></span>${i.cat}</div>
+      <div class="legend-right"><span class="amt">${fmt(i.montant)}</span><span class="pct">${(i.pct*100).toFixed(1)}%</span></div>
+    </div>`).join('');
+}
+
+function renderRepartition() {
+  const d = DATA.repartition[currentAccount];
+  chartSecteur = buildDonut('chartSecteur', d.secteur, chartSecteur);
+  buildLegend('legendSecteur', d.secteur);
+  chartGeo = buildDonut('chartGeo', d.geo, chartGeo);
+  buildLegend('legendGeo', d.geo);
+}
+
+function renderEvolution() {
+  const ctData = DATA.evolution.ct;
+  const peaData = DATA.evolution.pea;
+  const allDates = [...new Set([...ctData.map(d=>d.date), ...peaData.map(d=>d.date)])].sort();
+
+  function alignToLabels(series) {
+    const map = new Map(series.map(d => [d.date, d.cumule]));
+    let last = null;
+    return allDates.map(dt => {
+      if (map.has(dt)) { last = map.get(dt); return last; }
+      return last;
+    });
+  }
+
+  const ctx = document.getElementById('chartEvolution').getContext('2d');
+  if (chartEvolution) chartEvolution.destroy();
+  chartEvolution = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: allDates.map(d => new Date(d).toLocaleDateString('fr-FR', {day:'2-digit', month:'short', year:'2-digit'})),
+      datasets: [
+        {
+          label: 'Compte-Titres',
+          data: alignToLabels(ctData),
+          borderColor: '#60A5FA', backgroundColor: 'rgba(96,165,250,0.08)',
+          tension: 0.3, pointRadius: 3, fill: true, spanGaps: true
+        },
+        {
+          label: 'PEA',
+          data: alignToLabels(peaData),
+          borderColor: '#A78BFA', backgroundColor: 'rgba(167,139,250,0.08)',
+          tension: 0.3, pointRadius: 3, fill: true, spanGaps: true
+        }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      scales: {
+        x: { grid: { color: '#22304A' }, ticks: { color: '#8B98AC', font: {size: 9}, maxRotation: 45, minRotation: 45 } },
+        y: { grid: { color: '#22304A' }, ticks: { color: '#8B98AC', font: {size: 10}, callback: v => v + '€' } }
+      },
+      plugins: { legend: { labels: { color: '#E8EDF4', font: {size: 11} } } }
+    }
+  });
+
+  const merged = [...ctData.map(d=>({...d, compte:'CT'})), ...peaData.map(d=>({...d, compte:'PEA'}))]
+    .filter(d => d.action !== 'Ouverture')
+    .sort((a,b) => new Date(b.date) - new Date(a.date));
+  document.getElementById('salesHistory').innerHTML = merged.map(d => `
+    <div class="position-item">
+      <div>
+        <div class="position-name">${d.action}</div>
+        <div class="position-meta">${d.compte} · ${new Date(d.date).toLocaleDateString('fr-FR')}</div>
+      </div>
+      <div class="position-amt ${d.gain >= 0 ? '' : ''}" style="color:${d.gain >= 0 ? '#4ADE80' : '#FB7185'}">${d.gain >= 0 ? '+' : ''}${fmt(d.gain)}</div>
+    </div>`).join('');
+}
+
+function renderJournal() {
+  const items = DATA.journal[currentJournalAccount];
+  document.getElementById('journalList').innerHTML = items.map(i => `
+    <div class="position-item">
+      <div>
+        <div class="position-name">${i.nom}</div>
+        <div class="position-meta">${i.secteur} · Qté ${i.qte}</div>
+      </div>
+      <div class="position-amt">${fmt(i.montant)}</div>
+    </div>`).join('');
+}
+
+// Tab navigation
+document.querySelectorAll('nav.tabbar button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('nav.tabbar button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.getElementById('view-' + btn.dataset.view).classList.add('active');
+    // Charts drawn while their tab was hidden end up with 0 size; force a resize now that it's visible
+    requestAnimationFrame(() => {
+      [chartSecteur, chartGeo, chartEvolution].forEach(c => { if (c) c.resize(); });
+    });
+  });
+});
+
+// Account segmented controls
+document.getElementById('accountSeg').addEventListener('click', e => {
+  if (e.target.tagName !== 'BUTTON') return;
+  if (!DATA) return;
+  document.querySelectorAll('#accountSeg button').forEach(b => b.classList.remove('active'));
+  e.target.classList.add('active');
+  currentAccount = e.target.dataset.account;
+  renderRepartition();
+});
+
+document.getElementById('journalSeg').addEventListener('click', e => {
+  if (e.target.tagName !== 'BUTTON') return;
+  if (!DATA) return;
+  document.querySelectorAll('#journalSeg button').forEach(b => b.classList.remove('active'));
+  e.target.classList.add('active');
+  currentJournalAccount = e.target.dataset.account;
+  renderJournal();
+});
+
+async function refreshAll() {
+  const btn = document.getElementById('refreshBtn');
+  const timeEl = document.getElementById('updateTime');
+  btn.classList.add('spin');
+  timeEl.textContent = 'Actualisation…';
+  let loaded;
+  try {
+    loaded = await loadAllData();
+  } catch (err) {
+    timeEl.textContent = 'Échec de connexion aux données — ' + err.message;
+    console.error(err);
+    btn.classList.remove('spin');
+    return;
+  }
+  DATA = loaded;
+  try {
+    fillHeroAndCards();
+    renderRepartition();
+    renderEvolution();
+    renderJournal();
+    timeEl.textContent = 'Actualisé à ' + new Date().toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'}) + ' · v5';
+  } catch (err) {
+    timeEl.textContent = 'Données reçues, erreur d\'affichage — ' + err.message;
+    console.error(err);
+  } finally {
+    btn.classList.remove('spin');
+  }
+}
+
+document.getElementById('refreshBtn').addEventListener('click', refreshAll);
+
+refreshAll();
+// Actualisation automatique toutes les 5 minutes si la page reste ouverte
+setInterval(refreshAll, 5 * 60 * 1000);
+</script>
+</body>
+</html>
