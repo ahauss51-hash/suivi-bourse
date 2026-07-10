@@ -553,9 +553,15 @@ let chartSecteur, chartGeo, chartEvolution;
 let currentAccount = 'cto';
 let currentJournalAccount = 'cto';
 
+// IMPORTANT : l'anneau et la légende doivent utiliser exactement le même
+// tableau trié, sinon les couleurs (attribuées par position) se décalent.
+function sortedItems(items) {
+  return items.filter(i => i.montant > 0).sort((a, b) => b.montant - a.montant);
+}
+
 function buildDonut(canvasId, items, existingChart) {
   const ctx = document.getElementById(canvasId).getContext('2d');
-  const filtered = items.filter(i => i.montant > 0);
+  const filtered = sortedItems(items);
   if (existingChart) existingChart.destroy();
   return new Chart(ctx, {
     type: 'doughnut',
@@ -590,7 +596,7 @@ function buildDonut(canvasId, items, existingChart) {
 
 function buildLegend(elId, items) {
   const el = document.getElementById(elId);
-  const filtered = items.filter(i => i.montant > 0).sort((a,b) => b.montant - a.montant);
+  const filtered = sortedItems(items);
   el.innerHTML = filtered.map((i, idx) => `
     <div class="legend-item">
       <div class="legend-left"><span class="legend-dot" style="background:${PALETTE[idx % PALETTE.length]}"></span>${i.cat}</div>
@@ -729,7 +735,7 @@ async function refreshAll() {
     renderRepartition();
     renderEvolution();
     renderJournal();
-    timeEl.textContent = 'Actualisé à ' + new Date().toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'}) + ' · v8';
+    timeEl.textContent = 'Actualisé à ' + new Date().toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'}) + ' · v9';
   } catch (err) {
     timeEl.textContent = 'Données reçues, erreur d\'affichage — ' + err.message;
     console.error(err);
