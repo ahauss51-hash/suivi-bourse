@@ -765,7 +765,28 @@ function renderJournal() {
 /* ==================== SUIVI EN DIRECT (Stooq) ==================== */
 
 const LIVE_REFRESH_MS = 10 * 60 * 1000;
-const LIVE_CORS_PROXY = ""; // ex: "https://corsproxy.io/?url=" si Stooq est bloqué par CORS
+
+// Stooq ne renvoie pas d'en-têtes CORS pour un appel direct depuis un navigateur.
+// Robustesse : on essaie un accès direct, puis plusieurs proxys CORS publics indépendants
+// dans l'ordre, avec un délai limite par tentative. Dès qu'un proxy fonctionne, il est
+// retenté en premier pour les prochains cours (dans la même session).
+const CORS_PROXIES = [
+  null, // accès direct (au cas où)
+  (url) => 'https://corsproxy.io/?url=' + encodeURIComponent(url),
+  (url) => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url),
+  (url) => 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(url),
+];
+let workingProxyIndex = null;
+
+async function fetchWithTimeout(url, ms) {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), ms);
+  try {
+    return await fetch(url, { cache: 'no-store', signal: controller.signal });
+  } finally {
+    clearTimeout(id);
+  }
+}
 
 // Tickers pré-identifiés pour les positions ouvertes (vérifiés au 23/07/2026).
 // Modifiables directement dans l'onglet si un cours ne remonte pas.
@@ -816,21 +837,33 @@ function toStooqSymbol(t) {
 
 async function fetchStooqQuote(ticker) {
   const sym = toStooqSymbol(ticker);
-  const url = `https://stooq.com/q/l/?s=${sym}&f=sd2t2ohlcv&h&e=csv`;
-  const finalUrl = LIVE_CORS_PROXY ? (LIVE_CORS_PROXY + encodeURIComponent(url)) : url;
-  try {
-    const res = await fetch(finalUrl, { cache: 'no-store' });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const text = await res.text();
-    const lines = text.trim().split('\n');
-    if (lines.length < 2) throw new Error('réponse vide');
-    const cols = lines[1].split(',');
-    const close = parseFloat(cols[6]);
-    if (isNaN(close) || cols[1] === 'N/D') throw new Error('ticker introuvable');
-    livePrices[ticker] = { price: close, error: null };
-  } catch (e) {
-    livePrices[ticker] = { price: null, error: e.message };
+  const targetUrl = `https://stooq.com/q/l/?s=${sym}&f=sd2t2ohlcv&h&e=csv`;
+  const order = workingProxyIndex !== null
+    ? [workingProxyIndex, ...CORS_PROXIES.map((_, i) => i).filter(i => i !== workingProxyIndex)]
+    : CORS_PROXIES.map((_, i) => i);
+
+  let lastErr = 'échec réseau';
+  for (const idx of order) {
+    const builder = CORS_PROXIES[idx];
+    const finalUrl = builder ? builder(targetUrl) : targetUrl;
+    try {
+      const res = await fetchWithTimeout(finalUrl, 6000);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const text = await res.text();
+      const lines = text.trim().split('\n');
+      if (lines.length < 2) throw new Error('réponse vide');
+      const cols = lines[1].split(',');
+      const close = parseFloat(cols[6]);
+      if (isNaN(close) || cols[1] === 'N/D') throw new Error('ticker introuvable');
+      workingProxyIndex = idx;
+      livePrices[ticker] = { price: close, error: null };
+      return;
+    } catch (e) {
+      lastErr = e.name === 'AbortError' ? 'délai dépassé' : e.message;
+      // essaie la source suivante
+    }
   }
+  livePrices[ticker] = { price: null, error: lastErr };
 }
 
 async function loadTickerMap() {
