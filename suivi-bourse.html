@@ -144,7 +144,7 @@
   @keyframes spin { to { transform: rotate(360deg); } }
 
   /* --- Onglet Direct --- */
-  .direct-right { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+  .direct-right { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex-shrink: 0; }
   .pct-badge {
     font-size: 10.5px; font-weight: 700; padding: 1px 7px; border-radius: 8px; display: inline-block;
   }
@@ -152,6 +152,14 @@
   .pct-badge.down { background: rgba(251,113,133,0.14); color: var(--red); }
   .pct-badge.flat { background: rgba(139,152,172,0.14); color: var(--muted); }
   .direct-sub { font-size: 11px; color: var(--muted); }
+  /* Lignes de pourcentage de la colonne de droite : empilées, jamais coupées.
+     Classe dédiée pour ne pas affecter la note sous le graphique, qui est un
+     texte long devant pouvoir passer à la ligne. */
+  .pct-line {
+    font-size: 11px; color: var(--muted);
+    white-space: nowrap;
+    display: flex; align-items: center; gap: 5px; justify-content: flex-end;
+  }
   .warn-box {
     background: rgba(251,113,133,0.08); border: 1px solid rgba(251,113,133,0.3);
     border-radius: 12px; padding: 14px; font-size: 12px; color: var(--text); line-height: 1.6;
@@ -1092,7 +1100,8 @@ function renderDirect() {
       <div class="direct-right">
         <div class="position-amt">${fmt(valeur)}</div>
         <div class="position-amt" style="color:${gain >= 0 ? 'var(--green)' : 'var(--red)'}">${gain >= 0 ? '+' : ''}${fmt(gain)}</div>
-        <div class="direct-sub">jour ${pctBadge(d.pctOuv)} · achat ${pctBadge(pctAchat)}</div>
+        <div class="pct-line">jour ${pctBadge(d.pctOuv)}</div>
+        <div class="pct-line">achat ${pctBadge(pctAchat)}</div>
       </div>
     </div>`;
   }
